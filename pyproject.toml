@@ -8,3 +8,16 @@ dependencies = [
     "gunicorn>=26.2.0",
     "requests>=2.32",
 ]
+
+[dependency-groups]
+dev = [
+    "playwright>=1.63.0",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "real_api: hits the real Open-Meteo API -- run manually with `-m real_api`, never in CI",
+]
+addopts = "-m 'not real_api'"

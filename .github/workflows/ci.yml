@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Python version comes from .python-version -- uv picks it up.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Playwright browser
+        run: uv run playwright install --with-deps chromium
+
+      # Unit, API and browser tests. The real-Open-Meteo tier (-m real_api) is manual only.
+      - name: Run tests
+        run: uv run pytest

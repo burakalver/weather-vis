@@ -1,0 +1,93 @@
+:root {
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --border: #dddcd7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --grid: #e6e5e0;
+  --high: #e34948;
+  --low: #2a78d6;
+  /* one color per city when comparing cities; validated all-pairs for CVD in both modes */
+  --city-0: #7b4fc9;  /* purple */
+  --city-1: #0f9488;  /* teal */
+  --city-2: #b8860b;  /* gold */
+  --band-alpha: 0.14;
+  --fc-shade: rgba(82, 81, 78, 0.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1a1a19;
+    --surface-2: #262624;
+    --border: #3a3a37;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --grid: #2e2e2c;
+    --high: #e66767;
+    --low: #3987e5;
+    --city-0: #8f6ad8;
+    --city-1: #149889;
+    --city-2: #bc8a10;
+    --band-alpha: 0.2;
+    --fc-shade: rgba(255, 255, 255, 0.05);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 16px 24px;
+  background: var(--surface); color: var(--text-primary);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+h1 { font-size: 20px; margin: 0 0 2px; font-weight: 600; }
+.sub { color: var(--text-secondary); margin-bottom: 14px; min-height: 1.4em; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; margin-bottom: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field > span { font-size: 12px; color: var(--text-secondary); }
+input, select, button {
+  font: inherit; color: var(--text-primary); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+}
+input[type=number] { width: 80px; }
+.cities-field { flex-basis: 100%; }
+.cities { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); white-space: nowrap;
+}
+.chip.solo { padding-right: 10px; }
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; }
+.chip button { border: 0; background: none; padding: 0 6px; color: var(--text-secondary); cursor: pointer; font-size: 16px; line-height: 1; }
+.chip button:hover { color: var(--text-primary); }
+.search { position: relative; }
+.search input { width: 200px; }
+.results {
+  position: absolute; top: 100%; left: 0; min-width: 280px; z-index: 10; margin: 2px 0 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  list-style: none; padding: 4px 0; display: none; max-height: 300px; overflow-y: auto;
+}
+.results li { padding: 6px 10px; cursor: pointer; }
+.results li:hover { background: var(--surface-2); }
+.results small { color: var(--text-secondary); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 5px 10px; cursor: pointer; }
+.seg button.on { background: var(--surface-2); font-weight: 600; }
+.seg button:disabled { color: var(--text-secondary); opacity: 0.5; cursor: default; }
+.main { display: flex; gap: 16px; align-items: flex-start; }
+#chart { flex: 1; min-width: 0; height: 560px; }
+.legend { flex: none; width: 210px; padding-top: 8px; font-size: 13px; }
+.legend h3 { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+.legend h3:first-child { margin-top: 0; }
+.legend label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+.legend .key { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.legend input { margin: 0; accent-color: var(--text-secondary); }
+.legend svg { flex: none; }
+@media (max-width: 800px) {
+  .main { flex-direction: column; }
+  #chart { width: 100%; }
+  .legend { width: auto; display: flex; flex-wrap: wrap; gap: 0 24px; }
+}
+.status { color: var(--text-secondary); padding: 4px 0; }
+.link { border: 0; background: none; padding: 5px 0; color: var(--text-secondary); text-decoration: underline; cursor: pointer; }
+.link:hover { color: var(--text-primary); }
+.error { color: var(--high); }
+.note { color: var(--text-secondary); font-size: 12px; margin: 8px 0 0; max-width: 760px; }
+.note a { color: inherit; }

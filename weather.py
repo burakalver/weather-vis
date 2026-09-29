@@ -1,4 +1,8 @@
-"""Open-Meteo fetching (with an on-disk per-year cache) and the month-vs-baseline stats."""
+"""Open-Meteo fetching (with an on-disk per-year cache) and the month-vs-baseline stats.
+
+"Today" is always the city's local date (from the forecast API, which answers in
+the location's time zone), not the server's -- the server runs on UTC.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,8 @@ import calendar
 import json
 import os
 import statistics
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -24,29 +29,67 @@ FORECAST_PAST_DAYS = 90
 FORECAST_DAYS = 16
 # Centered 7-day mean -> 3 days on each side.
 HALF_WINDOW = 3
+RETRY_DELAY_S = 2.0
 
 Daily = dict[date, tuple[float | None, float | None]]  # date -> (high, low) in °C
 
 
-def _fetch(url: str, lat: float, lon: float, start: date, end: date) -> Daily:
-    resp = requests.get(
-        url,
-        params={
-            "latitude": lat,
-            "longitude": lon,
-            "start_date": start.isoformat(),
-            "end_date": end.isoformat(),
-            "daily": "temperature_2m_max,temperature_2m_min",
-            "timezone": "auto",
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
-    d = resp.json()["daily"]
+class OpenMeteoError(Exception):
+    """An Open-Meteo request failed; the message is fit to show the user."""
+
+
+def _get(url: str, params: dict) -> dict:
+    """GET JSON from Open-Meteo, retrying once on rate limiting, server errors and network trouble."""
+    for attempt in (1, 2):
+        try:
+            resp = requests.get(url, params=params, timeout=60)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            if attempt == 2:
+                raise OpenMeteoError(f"couldn't reach Open-Meteo ({type(e).__name__})") from e
+        else:
+            if resp.ok:
+                return resp.json()
+            if attempt == 2 or not (resp.status_code == 429 or resp.status_code >= 500):
+                if resp.status_code == 429:
+                    raise OpenMeteoError("Open-Meteo is rate-limiting requests; try again in a minute")
+                try:
+                    reason = resp.json().get("reason", "")
+                except ValueError:
+                    reason = ""
+                raise OpenMeteoError(f"Open-Meteo returned HTTP {resp.status_code} {reason}".strip())
+        time.sleep(RETRY_DELAY_S)
+    raise AssertionError("unreachable")
+
+
+def _daily(payload: dict) -> Daily:
+    d = payload["daily"]
     return {
         date.fromisoformat(t): (hi, lo)
         for t, hi, lo in zip(d["time"], d["temperature_2m_max"], d["temperature_2m_min"])
     }
+
+
+def _fetch(url: str, lat: float, lon: float, start: date, end: date) -> Daily:
+    return _daily(_get(url, {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "daily": "temperature_2m_max,temperature_2m_min",
+        "timezone": "auto",
+    }))
+
+
+def fetch_forecast(lat: float, lon: float) -> tuple[date, Daily]:
+    """(the city's local today, forecast from today through the horizon)."""
+    daily = _daily(_get(FORECAST_URL, {
+        "latitude": lat,
+        "longitude": lon,
+        "forecast_days": FORECAST_DAYS,
+        "daily": "temperature_2m_max,temperature_2m_min",
+        "timezone": "auto",
+    }))
+    return min(daily), daily
 
 
 def _cache_path(lat: float, lon: float, year: int) -> Path:
@@ -71,11 +114,11 @@ def _save_years(lat: float, lon: float, daily: Daily) -> None:
         os.replace(tmp, path)
 
 
-def _fetch_recent(lat: float, lon: float, start: date, end: date) -> Daily:
-    """Archive data, with gaps (the archive lags ~5 days) filled from the forecast API."""
+def _fetch_recent(lat: float, lon: float, start: date, end: date, today: date) -> Daily:
+    """Archive data, with gaps (the archive lags a few days) filled from the forecast API."""
     out = _fetch(ARCHIVE_URL, lat, lon, start, end)
     gaps = [d for d, (hi, lo) in out.items() if hi is None or lo is None]
-    fc_start = max(start, date.today() - timedelta(days=FORECAST_PAST_DAYS))
+    fc_start = max(start, today - timedelta(days=FORECAST_PAST_DAYS))
     if gaps and max(gaps) >= fc_start:
         fc = _fetch(FORECAST_URL, lat, lon, max(min(gaps), fc_start), end)
         for d in gaps:
@@ -84,14 +127,13 @@ def _fetch_recent(lat: float, lon: float, start: date, end: date) -> Daily:
     return out
 
 
-def get_range(lat: float, lon: float, start: date, end: date) -> Daily:
-    """Daily (high, low) °C for [start, end], clipped to yesterday."""
-    yesterday = date.today() - timedelta(days=1)
-    end = min(end, yesterday)
+def get_range(lat: float, lon: float, start: date, end: date, today: date) -> Daily:
+    """Observed daily (high, low) °C for [start, end], clipped to the day before `today`."""
+    end = min(end, today - timedelta(days=1))
     if start > end:
         return {}
 
-    stable_cutoff = date.today() - timedelta(days=STABLE_AFTER_DAYS)
+    stable_cutoff = today - timedelta(days=STABLE_AFTER_DAYS)
     stable_years = [y for y in range(start.year, end.year + 1) if date(y, 12, 31) < stable_cutoff]
     missing = [y for y in stable_years if not _cache_path(lat, lon, y).exists()]
     if missing:
@@ -105,18 +147,13 @@ def get_range(lat: float, lon: float, start: date, end: date) -> Daily:
     recent_start = date(stable_years[-1] + 1, 1, 1) if stable_years else start
     recent_start = max(recent_start, start)
     if recent_start <= end:
-        out.update(_fetch_recent(lat, lon, recent_start, end))
+        out.update(_fetch_recent(lat, lon, recent_start, end, today))
 
     return {d: v for d, v in out.items() if start <= d <= end}
 
 
-def get_forecast(lat: float, lon: float, start: date, end: date) -> Daily:
-    """Forecast (high, low) °C for the part of [start, end] from today to the forecast horizon."""
-    start = max(start, date.today())
-    end = min(end, date.today() + timedelta(days=FORECAST_DAYS - 1))
-    if start > end:
-        return {}
-    return _fetch(FORECAST_URL, lat, lon, start, end)
+def _utc_today() -> date:
+    return datetime.now(timezone.utc).date()
 
 
 def _month_values(daily: Daily, year: int, month: int, idx: int, smooth: bool) -> list[float | None]:
@@ -191,14 +228,22 @@ def month_comparison(lat: float, lon: float, year: int, month: int, base_start: 
     ndays = calendar.monthrange(year, month)[1]
     pad = timedelta(days=HALF_WINDOW)
 
-    sel = get_range(lat, lon, date(year, month, 1) - pad, date(year, month, ndays) + pad)
+    win_start, win_end = date(year, month, 1) - pad, date(year, month, ndays) + pad
+
+    # Local dates are within a day of UTC, so a window ending 2+ days before UTC
+    # today is entirely in the past and needs neither the forecast nor local today.
+    if win_end >= _utc_today() - timedelta(days=2):
+        today, fc = fetch_forecast(lat, lon)
+    else:
+        today, fc = _utc_today(), {}
+
+    sel = get_range(lat, lon, win_start, win_end, today)
     sel = {d: v for d, v in sel.items() if None not in v}
-    fc = get_forecast(lat, lon, date(year, month, 1) - pad, date(year, month, ndays) + pad)
-    fc = {d: v for d, v in fc.items() if d not in sel and None not in v}
+    fc = {d: v for d, v in fc.items() if win_start <= d <= win_end and d not in sel and None not in v}
     fc_dates = set(fc)
     combined = {**fc, **sel}
     base_last_day = calendar.monthrange(base_end, month)[1]
-    base = get_range(lat, lon, date(base_start, month, 1) - pad, date(base_end, month, base_last_day) + pad)
+    base = get_range(lat, lon, date(base_start, month, 1) - pad, date(base_end, month, base_last_day) + pad, today)
     base_years = range(base_start, base_end + 1)
 
     in_month = [d for d in sel if d.month == month]
