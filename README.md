@@ -36,10 +36,13 @@ internet access.
 
 ## Deploy
 
-Hosted on [Render](https://render.com) from `main` via `render.yaml` (Docker,
-free plan). GitHub Actions runs lint and tests on every push, and Render deploys only
-after they pass. Dependabot opens monthly PRs for dependency and Actions updates. The free plan sleeps after ~15 min idle, so the first visit
-after a while takes 30–60 s.
+Hosted on [Render](https://render.com) from `main` via `render.yaml` (Docker).
+GitHub Actions runs lint and tests on every push, and Render deploys only after
+they pass. Dependabot opens monthly PRs for dependency and Actions updates.
+
+Cost: $0 on Render's Hobby workspace with the free instance, which sleeps after
+~15 min idle (the next visit takes 30–60 s). The always-on `0.5c-512mb` instance
+is $7/month. The $25/month Pro workspace is for teams and isn't needed.
 
 ## Layout
 

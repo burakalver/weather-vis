@@ -3,6 +3,8 @@ services:
   - type: web
     name: weather-vis
     runtime: docker
-    plan: free  # sleeps after ~15 min idle (first load then takes ~30-60s); "starter" stays up
+    # free: $0, sleeps after ~15 min idle (next visit takes ~30-60s). 0.5c-512mb: $7/mo, always on.
+    # Both work on the free Hobby workspace; the $25/mo Pro workspace is not needed.
+    plan: free
     healthCheckPath: /healthz
     autoDeployTrigger: checksPass  # deploy only after GitHub Actions CI passes

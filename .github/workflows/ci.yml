@@ -14,7 +14,7 @@ jobs:
 
       # Python version comes from .python-version -- uv picks it up.
       - name: Install uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Install dependencies
         run: uv sync
