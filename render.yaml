@@ -1,0 +1,7 @@
+# Render Blueprint: New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: weather-vis
+    runtime: docker
+    plan: free  # sleeps after ~15 min idle (first load then takes ~30-60s); "starter" stays up
+    healthCheckPath: /healthz

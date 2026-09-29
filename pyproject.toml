@@ -1,0 +1,10 @@
+[project]
+name = "weather-vis"
+version = "0.1.0"
+description = "Compare a month's daily temperatures against a multi-year baseline (Open-Meteo)"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3.1.3",
+    "gunicorn>=26.2.0",
+    "requests>=2.32",
+]
