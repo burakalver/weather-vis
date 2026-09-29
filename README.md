@@ -9,6 +9,13 @@ Data comes from [Open-Meteo](https://open-meteo.com/) (free, no API key):
 historical values are ERA5 reanalysis (a ~9–25 km modelled grid, not station
 readings), recent days and the forecast come from its forecast API.
 
+![Cambridge, MA: September 2026 vs the 2000–2020 average, 7-day mean with baseline band and forecast](docs/cambridge.png)
+
+Comparing cities — here Cambridge, MA and Seattle, WA, with each city's 2026
+line against its own baseline average:
+
+![Cambridge, MA and Seattle, WA: September 2026 vs 2000–2020 averages](docs/cambridge-seattle.png)
+
 ## Run locally
 
 Needs [uv](https://docs.astral.sh/uv/).
