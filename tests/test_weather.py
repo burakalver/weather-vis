@@ -5,9 +5,9 @@ from datetime import date, timedelta
 
 import pytest
 import requests
+from conftest import fake_high, fake_low
 
 import weather
-from conftest import fake_high, fake_low
 from weather import (
     OpenMeteoError,
     _baseline,

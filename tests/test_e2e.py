@@ -6,15 +6,15 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from conftest import install_fake
 from playwright.sync_api import Page, expect, sync_playwright
 from werkzeug.serving import make_server
 
 import app as app_module
-from conftest import install_fake
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
           "September", "October", "November", "December"]
@@ -39,7 +39,7 @@ def browser():
 @pytest.fixture
 def server(monkeypatch, tmp_path):
     # The browser runs in UTC too, so its "this month" matches the fake's today.
-    install_fake(monkeypatch, tmp_path, datetime.now(timezone.utc).date())
+    install_fake(monkeypatch, tmp_path, datetime.now(UTC).date())
     srv = make_server("127.0.0.1", 0, app_module.app, threaded=True)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_port}/"
@@ -86,7 +86,7 @@ def query(pg: Page) -> dict:
 
 
 def test_defaults(page):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expect(page.locator("#title")).to_contain_text(f"{MONTHS[now.month - 1]} {now.year}")
     expect(page.locator("#mode .on")).to_have_text("7-day mean")
     expect(page.locator("#units .on")).to_have_text("°F")

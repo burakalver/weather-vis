@@ -28,6 +28,7 @@ open the bare address. **Reset** returns to the defaults.
 uv run playwright install chromium   # once, for the browser tests
 uv run pytest                        # unit, API and browser tests (what CI runs)
 uv run pytest -m real_api            # against the real Open-Meteo API -- manual only
+uv run ruff check .                  # lint (also in CI)
 ```
 
 The browser tests fake Open-Meteo but load Plotly from its CDN, so they need
@@ -36,8 +37,8 @@ internet access.
 ## Deploy
 
 Hosted on [Render](https://render.com) from `main` via `render.yaml` (Docker,
-free plan). GitHub Actions runs the tests on every push, and Render deploys only
-after they pass. The free plan sleeps after ~15 min idle, so the first visit
+free plan). GitHub Actions runs lint and tests on every push, and Render deploys only
+after they pass. Dependabot opens monthly PRs for dependency and Actions updates. The free plan sleeps after ~15 min idle, so the first visit
 after a while takes 30–60 s.
 
 ## Layout

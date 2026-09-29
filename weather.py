@@ -11,7 +11,7 @@ import json
 import os
 import statistics
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -65,7 +65,7 @@ def _daily(payload: dict) -> Daily:
     d = payload["daily"]
     return {
         date.fromisoformat(t): (hi, lo)
-        for t, hi, lo in zip(d["time"], d["temperature_2m_max"], d["temperature_2m_min"])
+        for t, hi, lo in zip(d["time"], d["temperature_2m_max"], d["temperature_2m_min"], strict=True)
     }
 
 
@@ -153,7 +153,7 @@ def get_range(lat: float, lon: float, start: date, end: date, today: date) -> Da
 
 
 def _utc_today() -> date:
-    return datetime.now(timezone.utc).date()
+    return datetime.now(UTC).date()
 
 
 def _month_values(daily: Daily, year: int, month: int, idx: int, smooth: bool) -> list[float | None]:
@@ -219,8 +219,8 @@ def _forecast_days(year: int, month: int, fc_dates: set[date], smooth: bool) -> 
 
 def _split(values: list[float | None], is_fc: list[bool]) -> tuple[list, list]:
     """Split one series into observed and forecast parts."""
-    observed = [None if f else v for v, f in zip(values, is_fc)]
-    forecast = [v if f else None for v, f in zip(values, is_fc)]
+    observed = [None if f else v for v, f in zip(values, is_fc, strict=True)]
+    forecast = [v if f else None for v, f in zip(values, is_fc, strict=True)]
     return observed, forecast
 
 

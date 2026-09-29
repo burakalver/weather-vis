@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import threading
 import webbrowser
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from flask import Flask, jsonify, render_template, request
 
@@ -47,7 +47,7 @@ def api_month():
         return jsonify(error=f"bad parameters: {e}"), 400
 
     # Latest month with any data: the one the forecast horizon reaches (+1 day for time zones).
-    horizon = datetime.now(timezone.utc).date() + timedelta(days=FORECAST_DAYS)
+    horizon = datetime.now(UTC).date() + timedelta(days=FORECAST_DAYS)
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return jsonify(error="latitude/longitude out of range"), 400
     if not (1 <= month <= 12 and FIRST_YEAR <= year and (year, month) <= (horizon.year, horizon.month)):
