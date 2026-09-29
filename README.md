@@ -47,3 +47,7 @@ after a while takes 30–60 s.
   (`data/cache/`), baseline stats, smoothing, forecast split
 - `templates/index.html`, `static/app.js`, `static/app.css` — the page (Plotly chart)
 - `tests/` — pytest; `conftest.py` holds the fake Open-Meteo
+
+## License
+
+MIT — see `LICENSE`. Weather data © Open-Meteo, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
