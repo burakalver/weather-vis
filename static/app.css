@@ -79,6 +79,9 @@ input[type=number] { width: 80px; }
 .legend label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
 .legend .key { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
 .legend input { margin: 0; accent-color: var(--text-secondary); }
+.legend label.nested { padding-left: 20px; }
+.legend label.off { opacity: 0.45; cursor: default; }
+.legend select { margin-left: auto; padding: 2px 4px; font-size: 12px; }
 .legend svg { flex: none; }
 @media (max-width: 800px) {
   .main { flex-direction: column; }
