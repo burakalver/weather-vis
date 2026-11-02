@@ -162,3 +162,27 @@ def test_out_of_range_year_is_clamped(page):
     max_year, max_month = page.evaluate("[Math.floor(MAX_INDEX / 12), MAX_INDEX % 12 + 1]")
     assert page.input_value("#year") == str(max_year)
     assert page.input_value("#month") == str(max_month)
+
+
+def chart_dashes(pg: Page) -> list:
+    return pg.evaluate("document.getElementById('chart').data.map(t => t.line && t.line.dash).filter(Boolean)")
+
+
+def test_unchecking_the_year_hides_its_forecast(page):
+    page.uncheck('input[data-k="high.actual"]')
+    page.uncheck('input[data-k="low.actual"]')
+    expect(page.locator('input[data-k="high.forecast"]')).to_be_disabled()
+    assert "dot" not in chart_dashes(page)
+    assert page.evaluate("document.getElementById('chart').layout.shapes") == []
+    expect(page.locator("#subtitle")).not_to_contain_text("forecast through")
+
+
+def test_line_styles_apply_and_persist_in_the_url(page, server):
+    page.select_option('select[data-dash="actual"]', "dashdot")
+    page.select_option('select[data-dash="mean"]', "solid")
+    dashes = chart_dashes(page)
+    assert "dashdot" in dashes and "dash" not in dashes
+    assert query(page)["ls"] == ["dashdot,dot,solid"]
+    page.goto(server)
+    wait_loaded(page)
+    expect(page.locator('select[data-dash="actual"]')).to_have_value("dashdot")

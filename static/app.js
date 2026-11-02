@@ -3,6 +3,10 @@ const MAX_CITIES = 3;
 // selected-year line, its forecast continuation, baseline average, baseline 10–90% band
 const KINDS = ["actual", "forecast", "mean", "band"];
 const KEYS = ["high", "low"].flatMap(k => KINDS.map(kind => `${k}.${kind}`));
+// User-pickable line styles: Plotly dash name -> [menu label, SVG dasharray for the legend swatch].
+const DASHES = { solid: ["Solid", ""], dot: ["Dotted", "0.1 4"], dash: ["Dashed", "5 3"],
+                 longdash: ["Long dash", "9 3"], dashdot: ["Dash-dot", "5 3 0.1 3"] };
+const LINE_KINDS = ["actual", "forecast", "mean"];
 const now = new Date();
 const monthIndex = (y, m) => y * 12 + (m - 1);
 // Latest navigable month: the one the forecast horizon (today + 15 days) reaches.
@@ -17,6 +21,7 @@ const defaults = () => ({
   bstart: 2000, bend: 2020,
   mode: "smoothed", units: "F",  // 7-day mean: this app is about trends more than daily noise
   show: Object.fromEntries(KEYS.map(k => [k, true])),  // one set of toggles shared by all cities
+  dash: { actual: "solid", forecast: "dot", mean: "dash" },  // per line kind, shared by highs/lows/cities
 });
 const state = defaults();
 // Set when adding a 2nd city auto-hid series; undone on going back to one city
@@ -188,7 +193,8 @@ function toQuery() {
   const parts = state.cities.map(c => "c=" + [c.city, c.region, c.country, c.cc, c.lat, c.lon, c.slot].map(enc).join("|"));
   parts.push(`m=${state.year}-${pad2(state.month)}`, `base=${state.bstart}-${state.bend}`,
              `view=${state.mode}`, `u=${state.units}`,
-             `show=${KEYS.filter(k => state.show[k]).map(k => SHOW_CODE[k]).join(",") || "none"}`);
+             `show=${KEYS.filter(k => state.show[k]).map(k => SHOW_CODE[k]).join(",") || "none"}`,
+             `ls=${LINE_KINDS.map(k => state.dash[k]).join(",")}`);
   return parts.join("&");
 }
 
@@ -217,6 +223,7 @@ function fromQuery(qs) {
     const codes = new Set(p.get("show").split(","));
     for (const k of KEYS) s.show[k] = codes.has(SHOW_CODE[k]);
   }
+  (p.get("ls") || "").split(",").forEach((v, i) => { if (i < LINE_KINDS.length && v in DASHES) s.dash[LINE_KINDS[i]] = v; });
   return s;
 }
 
@@ -284,14 +291,19 @@ async function load({ push = true } = {}) {
 // ---- legend (show/hide checkboxes; one set for all cities) ----
 function swatch(kind, color) {
   const band = css("--band-alpha");
+  const dash = kind === "band" ? "" : DASHES[state.dash[kind]][1];
+  const line = `<line x1="2" y1="7" x2="25" y2="7" stroke="${color}" stroke-width="2" stroke-linecap="round"` +
+               (dash ? ` stroke-dasharray="${dash}"` : "") + `/>`;
   const body = kind === "band"
     ? `<rect x="1" y="1" width="24" height="12" rx="2" fill="${rgba(color, Math.min(1, band * 2.2))}"/>`
     : kind === "forecast"
-    ? `<line x1="2" y1="7" x2="25" y2="7" stroke="${color}" stroke-width="2" stroke-dasharray="0.1 4" stroke-linecap="round"/>` +
-      `<circle cx="13" cy="7" r="3.5" fill="${css("--surface")}" stroke="${color}" stroke-width="1.5"/>`
-    : `<line x1="1" y1="7" x2="25" y2="7" stroke="${color}" stroke-width="2"${kind === "mean" ? ' stroke-dasharray="4 3"' : ""}/>`;
+    ? line + `<circle cx="13" cy="7" r="3.5" fill="${css("--surface")}" stroke="${color}" stroke-width="1.5"/>`
+    : line;
   return `<svg width="26" height="14" aria-hidden="true">${body}</svg>`;
 }
+
+// The forecast continues the selected-year line, so it's only drawn when that line is.
+const forecastOn = k => state.show[`${k}.actual`] && state.show[`${k}.forecast`];
 
 function renderLegend(q, multi, hasForecast) {
   const labels = { actual: String(q.year), forecast: "Forecast", mean: `${q.bstart}–${q.bend} avg`, band: "Baseline 10–90%" };
@@ -303,15 +315,27 @@ function renderLegend(q, multi, hasForecast) {
   }
   for (const [k, title] of [["high", "Highs"], ["low", "Lows"]]) {
     const color = multi ? neutral : css(`--${k}`);
-    html += `<h3>${title}</h3>` + KINDS.filter(kind => kind !== "forecast" || hasForecast).map(kind =>
-      `<label><input type="checkbox" data-k="${k}.${kind}"${state.show[`${k}.${kind}`] ? " checked" : ""}>` +
-      `${swatch(kind, color)}<span>${labels[kind]}</span></label>`).join("");
+    html += `<h3>${title}</h3>` + KINDS.filter(kind => kind !== "forecast" || hasForecast).map(kind => {
+      const off = kind === "forecast" && !state.show[`${k}.actual`];
+      return `<label class="${kind === "forecast" ? "nested" : ""}${off ? " off" : ""}"` +
+             (off ? ` title="Shown with the ${q.year} line"` : "") + `>` +
+             `<input type="checkbox" data-k="${k}.${kind}"${state.show[`${k}.${kind}`] ? " checked" : ""}${off ? " disabled" : ""}>` +
+             `${swatch(kind, color)}<span>${labels[kind]}</span></label>`;
+    }).join("");
   }
+  const styleLabels = { ...labels, mean: "Average" };
+  html += `<h3>Line style</h3>` + LINE_KINDS.filter(kind => kind !== "forecast" || hasForecast).map(kind =>
+    `<label class="key">${swatch(kind, multi ? neutral : css("--text-secondary"))}<span>${styleLabels[kind]}</span>` +
+    `<select data-dash="${kind}">` +
+      Object.entries(DASHES).map(([v, [name]]) => `<option value="${v}"${state.dash[kind] === v ? " selected" : ""}>${name}</option>`).join("") +
+    `</select></label>`).join("");
   $("legend").innerHTML = html;
 }
 $("legend").addEventListener("change", e => {
-  const k = e.target.dataset.k; if (!k) return;
-  state.show[k] = e.target.checked;
+  const { k, dash } = e.target.dataset;
+  if (k) state.show[k] = e.target.checked;
+  else if (dash) state.dash[dash] = e.target.value;
+  else return;
   saveView(false);
   render();
 });
@@ -328,7 +352,7 @@ function render() {
   const lastDates = data.series.map(s => s.res.last_date).filter(Boolean).sort();
   const fcDates = data.series.map(s => s.res.forecast_through).filter(Boolean).sort();
   const hasForecast = fcDates.length > 0;
-  const showForecast = hasForecast && (state.show["high.forecast"] || state.show["low.forecast"]);
+  const showForecast = hasForecast && (forecastOn("high") || forecastOn("low"));
   const anyBand = state.show["high.band"] || state.show["low.band"];
   const fmtDay = iso => `${MONTHS[+iso.slice(5, 7) - 1].slice(0, 3)} ${+iso.slice(8, 10)}`;
   $("title").textContent = `${monthName} ${q.year} vs ${q.bstart}–${q.bend} average`;
@@ -359,25 +383,25 @@ function render() {
           fillcolor: rgba(color, band), hoverinfo: "skip" },
       );
       if (state.show[`${key}.mean`]) traces.push(
-        { x: days, y: mean, mode: "lines", line: { color, width: 2, dash: "dash" },
+        { x: days, y: mean, mode: "lines", line: { color, width: 2, dash: state.dash.mean },
           hovertemplate: `${who}avg ${label} %{y:.0f}${u}<extra></extra>` },
       );
       if (state.show[`${key}.actual`]) traces.push(
         { x: days, y: a.map(conv), mode: state.mode === "daily" ? "lines+markers" : "lines",
-          line: { color, width: 2 }, marker: { size: 6 },
+          line: { color, width: 2, dash: state.dash.actual }, marker: { size: 6 },
           customdata: vsAvg(a),
           hovertemplate: `<b>${who}${label} %{y:.0f}${u}</b> (%{customdata:+.0f}° vs avg)<extra></extra>` },
       );
       const k0 = f.findIndex(v => v != null);  // first forecast day
-      if (state.show[`${key}.forecast`] && k0 >= 0) {
-        // Dotted join from the last observed point, so the lines read as one series.
-        if (state.show[`${key}.actual`] && k0 > 0 && a[k0 - 1] != null) traces.push(
+      if (forecastOn(key) && k0 >= 0) {
+        // Join from the last observed point in the forecast style, so the lines read as one series.
+        if (k0 > 0 && a[k0 - 1] != null) traces.push(
           { x: [days[k0 - 1], days[k0]], y: [conv(a[k0 - 1]), conv(f[k0])], mode: "lines",
-            line: { color, width: 2, dash: "dot" }, hoverinfo: "skip" },
+            line: { color, width: 2, dash: state.dash.forecast }, hoverinfo: "skip" },
         );
         traces.push(
           { x: days, y: f.map(conv), mode: state.mode === "daily" ? "lines+markers" : "lines",
-            line: { color, width: 2, dash: "dot" },
+            line: { color, width: 2, dash: state.dash.forecast },
             marker: { size: 7, symbol: "circle-open", line: { width: 1.5, color } },
             customdata: vsAvg(f),
             hovertemplate: `${who}${label} <i>forecast</i> %{y:.0f}${u} (%{customdata:+.0f}° vs avg)<extra></extra>` },
